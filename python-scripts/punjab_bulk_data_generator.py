@@ -208,16 +208,17 @@ TENANT_CONFIGS = {
 }
 
 # === Global Configuration ===
-OUTPUT_BASE_DIR = "../generated_punjab_data"
+OUTPUT_BASE_DIR = "../generated_bulk_punjab_data"
 
 # === Reference Data (common across tenants) ===
 
 # Property types
 PROPERTY_TYPES = [
     "BUILTUP.INDEPENDENTPROPERTY",
-    "BUILTUP.SHAREDPROPERTY"
+    "BUILTUP.SHAREDPROPERTY",
+    "VACANT"
 ]
-PROPERTY_TYPE_WEIGHTS = [95, 5]
+PROPERTY_TYPE_WEIGHTS = [90, 5, 5]
 
 # Ownership categories
 OWNERSHIP_CATEGORIES = [
@@ -248,23 +249,28 @@ SOURCES = ["MUNICIPAL_RECORDS", "WATER_CHARGES"]
 SOURCE_WEIGHTS = [90, 10]
 
 # Owner types
-OWNER_TYPES = ["NONE", "WIDOW"]
-OWNER_TYPE_WEIGHTS = [95, 5]
+OWNER_TYPES = ["NONE", "WIDOW","DEFENSE","HANDICAPPED","FREEDOMFIGHTER"]
+OWNER_TYPE_WEIGHTS = [70, 10, 10, 5, 5]
 
 # Relationships
 RELATIONSHIPS = ["Father", "Husband", "FATHER"]
 RELATIONSHIP_WEIGHTS = [50, 45, 5]
 
 # Unit types
-UNIT_TYPES = ["OTHERCOMMERCIAL", "false", ""]
-UNIT_TYPE_WEIGHTS = [30, 20, 50]
+UNIT_TYPES = ["OTHERCOMMERCIAL", "OTHERINDUSTRIAL", "SCHOOL","WAREHOUSE","MANUFACTURINGFACILITY","HOTELS","MALLS","PVTHOSPITAL"]
+UNIT_TYPE_WEIGHTS = [30, 20, 10, 10, 10, 10, 5, 5,]
 
 # Usage category for units
 UNIT_USAGE_CATEGORIES = [
     "RESIDENTIAL",
-    "NONRESIDENTIAL.COMMERCIAL.OTHERCOMMERCIALSUBMINOR.OTHERCOMMERCIAL"
+    "NONRESIDENTIAL.COMMERCIAL.OTHERCOMMERCIALSUBMINOR.OTHERCOMMERCIAL",
+    "NONRESIDENTIAL.INDUSTRIAL.OTHERINDUSTRIALSUBMINOR.OTHERINDUSTRIAL",
+    "NONRESIDENTIAL.INSTITUTIONAL.EDUCATIONAL.SCHOOL",
+    "NONRESIDENTIAL.INDUSTRIAL.WAREHOUSE.WAREHOUSE",
+    "NONRESIDENTIAL.COMMERCIAL.MEDICALFACILITY.PVTHOSPITAL",
+    "NONRESIDENTIAL.COMMERCIAL.HOTELS.HOTELS"
 ]
-UNIT_USAGE_WEIGHTS = [60, 40]
+UNIT_USAGE_WEIGHTS = [40, 30, 10, 5, 5, 5, 5]
 
 # Occupancy types
 OCCUPANCY_TYPES = ["SELFOCCUPIED", "RENTED", "UNOCCUPIED", "PG"]
@@ -813,6 +819,8 @@ def generate_tenant_data(tenant_name, tenant_config):
 
 def main():
     """Main function with command-line argument parsing"""
+    global OUTPUT_BASE_DIR
+
     parser = argparse.ArgumentParser(
         description="Punjab Property Tax Data Generator (Multi-Tenant)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -853,7 +861,6 @@ Examples:
     args = parser.parse_args()
 
     # Update global output directory if specified
-    global OUTPUT_BASE_DIR
     OUTPUT_BASE_DIR = args.output_dir
 
     # List tenants if requested
