@@ -590,8 +590,13 @@ def generate_demand(tenant_config, property_id, fiscal_year, payer_id, created_t
     }
 
 
-def generate_demand_details(tenant_config, demand_id, usage_category, land_area, created_time):
-    """Generate demand detail records (6-12 tax heads)"""
+def generate_demand_details(tenant_config, demand_id, usage_category, land_area, created_time, fiscal_year, is_property_defaulter):
+    """Generate demand detail records (6-12 tax heads)
+
+    Args:
+        is_property_defaulter: Boolean indicating if this property is a defaulter.
+                               Penalty/interest only apply to defaulter properties.
+    """
     user_id = random.choice(USER_IDS)
     details = []
 
@@ -604,6 +609,16 @@ def generate_demand_details(tenant_config, demand_id, usage_category, land_area,
     all_heads = mandatory_heads + selected_optional
     base_tax = generate_tax_amount(usage_category, land_area)
 
+    # Calculate years overdue for this fiscal year
+    fy_start_year = int(fiscal_year["year"][:4])
+    current_year = 2025
+    years_overdue = current_year - fy_start_year
+
+    # Penalty/interest only applies if:
+    # 1. Property is a defaulter AND
+    # 2. The fiscal year is at least 1 year old (no penalty for current year even for defaulters)
+    apply_penalty_interest = is_property_defaulter and years_overdue >= 1
+
     for tax_head in all_heads:
         tax_amount = 0.0
         collection_amount = 0.0
@@ -615,22 +630,54 @@ def generate_demand_details(tenant_config, demand_id, usage_category, land_area,
         elif tax_head == "PT_CANCER_CESS":
             tax_amount = round(base_tax * 0.02, 2)
         elif tax_head == "PT_TIME_PENALTY":
-            tax_amount = 0
+            # Penalty: 10-25% of base tax for defaulters, increases with years overdue
+            if apply_penalty_interest:
+                penalty_rate = min(0.10 + (years_overdue * 0.05), 0.25)  # Max 25%
+                tax_amount = round(base_tax * penalty_rate * random.uniform(0.8, 1.2), 2)
+            else:
+                tax_amount = 0
         elif tax_head == "PT_TIME_INTEREST":
-            tax_amount = 0
+            # Interest: 12-18% per annum on base tax for defaulters
+            if apply_penalty_interest:
+                annual_interest_rate = random.uniform(0.12, 0.18)
+                # Interest compounds based on years overdue
+                interest_amount = base_tax * annual_interest_rate * min(years_overdue, 5)
+                tax_amount = round(interest_amount * random.uniform(0.9, 1.1), 2)
+            else:
+                tax_amount = 0
         elif tax_head == "PT_ROUNDOFF":
             tax_amount = round(random.uniform(-0.5, 0.5), 2)
         elif tax_head == "PT_TIME_REBATE":
-            tax_amount = round(-base_tax * 0.1, 2)
+            # Rebate only for non-defaulters who paid on time
+            if not is_property_defaulter and random.random() < 0.4:
+                tax_amount = round(-base_tax * random.uniform(0.05, 0.10), 2)
+            else:
+                tax_amount = 0
         elif tax_head in ["PT_UNIT_USAGE_EXEMPTION", "PT_OWNER_EXEMPTION"]:
-            tax_amount = 0
+            # Some exemptions for special categories
+            if random.random() < 0.15:
+                tax_amount = round(-base_tax * random.uniform(0.10, 0.50), 2)
+            else:
+                tax_amount = 0
         elif tax_head in ["PT_EDUCATION_CESS", "PT_LIBRARY_CESS", "PT_SEWERAGE_CESS"]:
             tax_amount = round(base_tax * random.uniform(0.01, 0.03), 2)
         elif tax_head == "PT_ADVANCE_CARRYFORWARD":
-            tax_amount = 0
+            # Some properties may have advance payments
+            if random.random() < 0.1:
+                tax_amount = round(-base_tax * random.uniform(0.5, 1.5), 2)
+            else:
+                tax_amount = 0
 
-        if random.random() < 0.7:
-            collection_amount = tax_amount
+        # Collection amount logic
+        # Defaulters have lower collection rates
+        if is_property_defaulter:
+            if random.random() < 0.4:  # 40% partial/full collection for defaulters
+                collection_amount = round(tax_amount * random.uniform(0.3, 1.0), 2)
+            else:
+                collection_amount = 0
+        else:
+            if random.random() < 0.85:  # 85% collection rate for non-defaulters
+                collection_amount = tax_amount
 
         details.append({
             "id": generate_uuid(),
@@ -694,6 +741,10 @@ def generate_tenant_data(tenant_name, tenant_config):
         land_area = float(prop["landarea"])
         num_floors = int(prop["nooffloors"])
 
+        # Determine if this property is a defaulter (35% of properties)
+        # This is a property-level attribute - consistent across all demands for this property
+        is_property_defaulter = random.random() < 0.35
+
         if ownership_category == "INDIVIDUAL.SINGLEOWNER":
             num_owners = 1
         else:
@@ -720,7 +771,7 @@ def generate_tenant_data(tenant_name, tenant_config):
             demand = generate_demand(tenant_config, property_id, fy, payer_id, demand_created_time)
             demands.append(demand)
 
-            details = generate_demand_details(tenant_config, demand["id"], usage_category, land_area, demand_created_time)
+            details = generate_demand_details(tenant_config, demand["id"], usage_category, land_area, demand_created_time, fy, is_property_defaulter)
             demand_details.extend(details)
 
     logger.info(f"[{tenant_name}] Writing CSV files...")
